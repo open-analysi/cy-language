@@ -1,0 +1,49 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: ^\.claude/(\.aipm|skills)/
+      - id: end-of-file-fixer
+        exclude: ^\.claude/(\.aipm|skills)/
+      - id: check-yaml
+      - id: check-added-large-files
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.7
+    hooks:
+      - id: ruff
+        args: ["--fix", "--exit-non-zero-on-fix"]
+        exclude: ^\.claude/(skills|agents|\.aipm)/
+      - id: ruff-format
+        exclude: ^\.claude/(skills|agents|\.aipm)/
+
+  - repo: local
+    hooks:
+      - id: sync-agent-md-symlinks
+        name: Sync AGENT.md symlinks
+        entry: ./scripts/sync_agent_md_symlinks.sh
+        language: system
+        files: CLAUDE\.md$
+        pass_filenames: false
+
+  - repo: local
+    hooks:
+      - id: skilltree-scan
+        name: Check skill dependencies (regex)
+        entry: bash -c '"$HOME/.skilltree/bin/skilltree" scan --check "$@"' --
+        language: system
+        files: '(^skills/.*\.md$|^agents/.*\.md$|bundled_skills/.*\.md$)'
+        pass_filenames: true
+      - id: skilltree-scan-llm
+        name: Check skill dependencies (LLM)
+        entry: bash -c '"$HOME/.skilltree/bin/skilltree" scan --llm --check "$@"' --
+        language: system
+        files: '(^skills/.*\.md$|^agents/.*\.md$|bundled_skills/.*\.md$)'
+        pass_filenames: true
+
+  - repo: https://github.com/commitizen-tools/commitizen
+    rev: v4.13.9
+    hooks:
+      - id: commitizen
+        stages: [commit-msg]

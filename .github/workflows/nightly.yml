@@ -1,0 +1,129 @@
+name: Nightly
+
+on:
+  schedule:
+    - cron: "30 4 * * *" # 4:30 AM UTC daily
+  workflow_dispatch:
+
+concurrency:
+  group: nightly
+  cancel-in-progress: false
+
+jobs:
+  check-activity:
+    name: Check Recent Activity
+    runs-on: ubuntu-latest
+    outputs:
+      has-activity: ${{ steps.check.outputs.has-activity }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Check for recent commits
+        id: check
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "has-activity=true" >> "$GITHUB_OUTPUT"
+            echo "Manual dispatch — skipping activity check"
+          elif git log --since="24 hours ago" --oneline | grep -q .; then
+            echo "has-activity=true" >> "$GITHUB_OUTPUT"
+            echo "Found recent commits"
+          else
+            echo "has-activity=false" >> "$GITHUB_OUTPUT"
+            echo "No recent commits — skipping nightly"
+          fi
+
+  full-test-suite:
+    name: Full Tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    needs: check-activity
+    if: needs.check-activity.outputs.has-activity == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.13"]
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - uses: snok/install-poetry@v1
+        with:
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - name: Cache poetry venv
+        uses: actions/cache@v5
+        with:
+          path: .venv
+          key: venv-nightly-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml', 'poetry.lock') }}
+          restore-keys: |
+            venv-nightly-${{ runner.os }}-${{ matrix.python-version }}-
+
+      - name: Install dependencies
+        run: poetry install --extras cli
+
+      - name: Run full test suite with coverage
+        run: |
+          poetry run pytest tests/ -v \
+            --cov=src/cy_language \
+            --cov-report=xml \
+            --cov-report=term-missing \
+            --junitxml=junit-nightly-${{ matrix.python-version }}.xml
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: junit-nightly-py${{ matrix.python-version }}
+          path: junit-nightly-${{ matrix.python-version }}.xml
+          retention-days: 30
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-py${{ matrix.python-version }}
+          path: coverage.xml
+          retention-days: 30
+
+  notify-failure:
+    name: Notify on Failure
+    runs-on: ubuntu-latest
+    needs: full-test-suite
+    if: failure()
+    steps:
+      - name: Check for existing issue
+        id: existing
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ISSUE=$(gh issue list \
+            --repo "${{ github.repository }}" \
+            --label "ci:nightly-failure" \
+            --state open \
+            --json number \
+            --jq '.[0].number // empty')
+          echo "issue-number=${ISSUE}" >> "$GITHUB_OUTPUT"
+
+      - name: Create or update failure issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          DATE=$(date -u +"%Y-%m-%d %H:%M UTC")
+
+          if [ -n "${{ steps.existing.outputs.issue-number }}" ]; then
+            gh issue comment "${{ steps.existing.outputs.issue-number }}" \
+              --repo "${{ github.repository }}" \
+              --body "Nightly failed again on ${DATE}. [Run details](${RUN_URL})"
+          else
+            gh issue create \
+              --repo "${{ github.repository }}" \
+              --title "Nightly CI failure — $(date -u +%Y-%m-%d)" \
+              --label "ci:nightly-failure" \
+              --body "The nightly test suite failed on ${DATE}.\n\n[Run details](${RUN_URL})\n\nThis issue was auto-created by the nightly workflow."
+          fi

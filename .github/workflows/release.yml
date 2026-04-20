@@ -1,0 +1,104 @@
+name: Release
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Bump Version & Release
+    runs-on: ubuntu-latest
+    # Only run when CI succeeded, and skip commits made by this workflow
+    # (bump: prefix) to avoid an infinite loop.
+    if: >-
+      ${{ github.event.workflow_run.conclusion == 'success'
+          && !contains(github.event.workflow_run.head_commit.message, 'bump:') }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.workflow_run.head_sha }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Fetch all tags
+        run: git fetch --tags origin
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Install commitizen
+        run: pip install "commitizen>=4.13,<5"
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Verify tags are available
+        run: |
+          echo "Latest tags:"
+          git tag --list 'v*' | sort -V | tail -5
+          echo "Current version in pyproject.toml:"
+          grep '^version' pyproject.toml
+
+      - name: Check for version-bumping commits
+        id: check
+        run: |
+          EXIT_CODE=0
+          OUTPUT=$(cz bump --dry-run --yes 2>&1) || EXIT_CODE=$?
+          echo "$OUTPUT"
+          # Exit code 21 = NoneIncrementExit (no version-bumping commits)
+          # Exit code 3  = no commits found
+          if [ "$EXIT_CODE" -eq 21 ] || [ "$EXIT_CODE" -eq 3 ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "No version-bumping commits found (exit $EXIT_CODE) — skipping release."
+          elif echo "$OUTPUT" | grep -qE "NoneIncrementExit|NO_COMMITS_FOUND|NO_INCREMENT|nothing to do|No commits found"; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "No version-bumping commits found — skipping release."
+          elif echo "$OUTPUT" | grep -qE "No tag matching|tag_format"; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Tag configuration issue — skipping release."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Bump version
+        if: steps.check.outputs.skip == 'false'
+        run: |
+          # Exit code 16 = changelog generation issue (non-fatal)
+          cz bump --no-verify --yes --changelog || {
+            EXIT_CODE=$?
+            if [ "$EXIT_CODE" -eq 16 ]; then
+              echo "Changelog generation had issues (exit 16), but version was bumped."
+              cz bump --no-verify --yes
+            else
+              exit $EXIT_CODE
+            fi
+          }
+
+      - name: Push version commit and tag
+        if: steps.check.outputs.skip == 'false'
+        run: |
+          git push origin main
+          TAG=$(git describe --tags --abbrev=0)
+          git push origin "$TAG"
+
+      - name: Create GitHub release
+        if: steps.check.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG=$(git describe --tags --abbrev=0)
+          VERSION=${TAG#v}
+          BODY=$(awk "/^## ${VERSION}/,/^## [0-9]/" CHANGELOG.md | head -n -1 | tail -n +2)
+          if [ -z "$BODY" ]; then
+            BODY="Release ${TAG}"
+          fi
+          COMMIT=$(git rev-parse HEAD)
+          gh release create "$TAG" --title "$TAG" --notes "$BODY" --target "$COMMIT"

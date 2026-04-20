@@ -1,0 +1,166 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  secrets-scan:
+    name: Secrets Scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  commit-messages:
+    name: Commit Messages
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Install commitizen
+        run: pip install commitizen
+
+      - name: Check PR commit messages
+        run: cz check --rev-range origin/${{ github.base_ref }}..HEAD
+
+  code-quality:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - uses: snok/install-poetry@v1
+        with:
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - name: Cache poetry venv
+        uses: actions/cache@v5
+        with:
+          path: .venv
+          key: venv-quality-${{ runner.os }}-3.13-${{ hashFiles('pyproject.toml', 'poetry.lock') }}
+          restore-keys: |
+            venv-quality-${{ runner.os }}-3.13-
+
+      - name: Install dependencies
+        run: poetry install --extras cli
+
+      - name: Ruff lint
+        run: poetry run ruff check src/ tests/
+
+      - name: Ruff format check
+        run: poetry run ruff format --check src/ tests/
+
+      - name: MyPy (informational)
+        continue-on-error: true
+        run: poetry run mypy src/cy_language/ --ignore-missing-imports
+
+      - name: pip-audit (informational)
+        continue-on-error: true
+        run: |
+          poetry run pip install pip-audit
+          poetry run pip-audit --strict --desc || true
+
+  test:
+    name: Tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.13"]
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - uses: snok/install-poetry@v1
+        with:
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - name: Cache poetry venv
+        uses: actions/cache@v5
+        with:
+          path: .venv
+          key: venv-test-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml', 'poetry.lock') }}
+          restore-keys: |
+            venv-test-${{ runner.os }}-${{ matrix.python-version }}-
+
+      - name: Install dependencies
+        run: poetry install --extras cli
+
+      - name: Run tests
+        run: poetry run pytest tests/ --ignore=tests/ui/test_streamlit_e2e.py -v --junitxml=junit-${{ matrix.python-version }}.xml
+
+      - name: CLI tool tests (--tools, --stub-tools, --mcp-stdio)
+        if: always()
+        run: poetry run pytest tests/unit/test_cli.py tests/unit/test_cli_tools.py tests/unit/test_cli_combinations.py tests/unit/test_cli_mcp.py tests/unit/test_mcp_stdio_bridge.py tests/unit/test_tool_loader.py tests/unit/test_stub_tools.py -v
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: junit-py${{ matrix.python-version }}
+          path: junit-${{ matrix.python-version }}.xml
+          retention-days: 14
+
+  package:
+    name: Package (wheel)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - uses: snok/install-poetry@v1
+        with:
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - name: Build wheel
+        run: make package
+
+      - name: Smoke test install (pipx + wheel)
+        run: |
+          WHEEL=$(ls dist/*.whl)
+          pipx install "${WHEEL}[cli]"
+          BIN_DIR=$(pipx environment --value PIPX_BIN_DIR)
+          "$BIN_DIR/cy" --version
+          "$BIN_DIR/cy" --help > /dev/null
+
+      - name: Upload wheel artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: wheel
+          path: dist/*.whl
+          retention-days: 14

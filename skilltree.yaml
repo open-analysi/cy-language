@@ -1,0 +1,14 @@
+name: cy-language
+install_targets:
+  - claude
+
+sources:
+  open-vibes: github.com/imarios/open-vibes
+
+dependencies:
+  cy-language-programming:
+    local: ./skills/cy-language-programming
+  ocsf-detection-finding:
+    source: open-vibes
+    path: skills/ocsf-detection-finding
+    version: "*"
