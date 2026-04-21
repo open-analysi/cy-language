@@ -67,8 +67,11 @@ jobs:
         run: poetry install --extras cli
 
       - name: Run full test suite with coverage
+        # Exclude the Streamlit e2e suite — its playwright fixtures engage a
+        # session-scoped event loop that breaks later sync Cy.run() calls.
+        # Streamlit e2e tests run separately via `make test-streamlit`.
         run: |
-          poetry run pytest tests/ -v \
+          poetry run pytest tests/ --ignore=tests/ui/test_streamlit_e2e.py -v \
             --cov=src/cy_language \
             --cov-report=xml \
             --cov-report=term-missing \
