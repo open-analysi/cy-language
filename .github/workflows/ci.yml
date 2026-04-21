@@ -87,11 +87,14 @@ jobs:
         continue-on-error: true
         run: poetry run mypy src/cy_language/ --ignore-missing-imports
 
-      - name: pip-audit (informational)
-        continue-on-error: true
+      - name: pip-audit (runtime dependencies)
+        # Scoped to runtime deps only — dev/test deps like langchain live in
+        # the dev group and are excluded from the shipped wheel, so their
+        # CVEs don't affect users of cy-language.
         run: |
           poetry run pip install pip-audit
-          poetry run pip-audit --strict --desc || true
+          poetry export --only=main --without-hashes --format=requirements.txt -o runtime-requirements.txt
+          poetry run pip-audit -r runtime-requirements.txt --strict --desc
 
   test:
     name: Tests (Python ${{ matrix.python-version }})
