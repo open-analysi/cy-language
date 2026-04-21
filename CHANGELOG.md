@@ -2,6 +2,12 @@
 
 Initial release.
 
+## v1.1.2 (2026-04-21)
+
+### Fix
+
+- **ci**: install poetry-plugin-export before pip-audit
+
 ## v1.1.1 (2026-04-21)
 
 ### Fix
