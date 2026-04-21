@@ -684,6 +684,31 @@ poetry run cy run examples/basic/01_basic_variable_assignment.cy
 pipx install -e ".[cli]"
 ```
 
+### Skills (via skilltree)
+
+This repo uses [skilltree](https://github.com/imarios/skilltree) to manage Claude Code skills as declared dependencies. The manifest lives in `skilltree.yaml`; installed skills land under `.claude/skills/` and are gitignored.
+
+Install skilltree once:
+
+```bash
+pipx install skilltree
+```
+
+Then, from the repo root:
+
+```bash
+# Fetch and install all skills declared in skilltree.yaml
+skilltree install
+
+# List what's installed
+skilltree list
+
+# Pull updated versions of remote skills
+skilltree update
+```
+
+Local skills (e.g., `skills/cy-language-programming`) are symlinked, so edits take effect immediately. Remote skills are read-only artifacts — to change one, edit it in its origin repo, then `skilltree update` here (bump the pinned version first if the manifest pins a specific tag).
+
 ---
 
 ## License
