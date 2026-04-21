@@ -93,10 +93,52 @@ jobs:
           path: coverage.xml
           retention-days: 30
 
+  streamlit-e2e:
+    name: Streamlit E2E
+    runs-on: ubuntu-latest
+    needs: check-activity
+    if: needs.check-activity.outputs.has-activity == 'true'
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - uses: snok/install-poetry@v1
+        with:
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - name: Cache poetry venv
+        uses: actions/cache@v5
+        with:
+          path: .venv
+          key: venv-streamlit-${{ runner.os }}-3.13-${{ hashFiles('pyproject.toml', 'poetry.lock') }}
+          restore-keys: |
+            venv-streamlit-${{ runner.os }}-3.13-
+
+      - name: Install dependencies (cli + ui group)
+        run: poetry install --extras cli --with ui
+
+      - name: Install playwright browser
+        run: poetry run playwright install --with-deps chromium
+
+      - name: Run Streamlit e2e tests
+        run: poetry run pytest -m e2e -v --junitxml=junit-streamlit-e2e.xml
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: junit-streamlit-e2e
+          path: junit-streamlit-e2e.xml
+          retention-days: 30
+
   notify-failure:
     name: Notify on Failure
     runs-on: ubuntu-latest
-    needs: full-test-suite
+    needs: [full-test-suite, streamlit-e2e]
     if: failure()
     steps:
       - name: Check for existing issue
