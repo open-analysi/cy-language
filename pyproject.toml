@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "cy-language"
-version = "1.1.0"
+version = "1.1.1"
 description = "Cy language interpreter for programmable directives with AI integration"
 authors = ["Marios Iliofotou <iliofotou@gmail.com>"]
 readme = "README.md"
@@ -163,7 +163,7 @@ filterwarnings = [
 
 [tool.commitizen]
 name = "cz_conventional_commits"
-version = "1.1.0"
+version = "1.1.1"
 version_files = [
     "pyproject.toml:^version"
 ]
