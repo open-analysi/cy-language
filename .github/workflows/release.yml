@@ -85,7 +85,9 @@ jobs:
       - name: Push version commit and tag
         if: steps.check.outputs.skip == 'false'
         run: |
-          git push origin main
+          # Detached HEAD — push via explicit refspec since workflow_run
+          # checkout pins to a SHA, not a branch.
+          git push origin HEAD:main
           TAG=$(git describe --tags --abbrev=0)
           git push origin "$TAG"
 
