@@ -93,6 +93,15 @@ jobs:
           path: coverage.xml
           retention-days: 30
 
+      - name: Upload coverage to Codecov
+        if: always()
+        uses: codecov/codecov-action@v5
+        with:
+          files: ./coverage.xml
+          flags: nightly
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+
   streamlit-e2e:
     name: Streamlit E2E
     runs-on: ubuntu-latest
