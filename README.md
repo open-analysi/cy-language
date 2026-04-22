@@ -1,5 +1,12 @@
 # Cy Language
 
+[![CI](https://github.com/open-analysi/cy-language/actions/workflows/ci.yml/badge.svg)](https://github.com/open-analysi/cy-language/actions/workflows/ci.yml)
+[![Nightly](https://github.com/open-analysi/cy-language/actions/workflows/nightly.yml/badge.svg)](https://github.com/open-analysi/cy-language/actions/workflows/nightly.yml)
+[![codecov](https://codecov.io/gh/open-analysi/cy-language/branch/main/graph/badge.svg)](https://codecov.io/gh/open-analysi/cy-language)
+[![Latest release](https://img.shields.io/github/v/release/open-analysi/cy-language?sort=semver)](https://github.com/open-analysi/cy-language/releases/latest)
+[![License](https://img.shields.io/github/license/open-analysi/cy-language)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.12%20%7C%203.13-blue)](https://github.com/open-analysi/cy-language/blob/main/pyproject.toml)
+
 Cy is a scripting language designed for AI to write and humans to read. It's for platforms that need to execute LLM-generated or user-authored automation safely — sandboxed, composable, and verifiable before it runs.
 
 ## Why Cy?
