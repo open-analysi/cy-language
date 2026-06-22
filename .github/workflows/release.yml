@@ -19,7 +19,7 @@ jobs:
       ${{ github.event.workflow_run.conclusion == 'success'
           && !contains(github.event.workflow_run.head_commit.message, 'bump:') }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           ref: ${{ github.event.workflow_run.head_sha }}

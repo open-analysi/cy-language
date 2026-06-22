@@ -16,7 +16,7 @@ jobs:
     outputs:
       has-activity: ${{ steps.check.outputs.has-activity }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -44,7 +44,7 @@ jobs:
       matrix:
         python-version: ["3.13"]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-python@v6
         with:
@@ -108,7 +108,7 @@ jobs:
     needs: check-activity
     if: needs.check-activity.outputs.has-activity == 'true'
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-python@v6
         with:
