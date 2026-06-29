@@ -56,7 +56,7 @@ jobs:
           virtualenvs-in-project: true
 
       - name: Cache poetry venv
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: .venv
           key: venv-nightly-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml', 'poetry.lock') }}
@@ -120,7 +120,7 @@ jobs:
           virtualenvs-in-project: true
 
       - name: Cache poetry venv
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: .venv
           key: venv-streamlit-${{ runner.os }}-3.13-${{ hashFiles('pyproject.toml', 'poetry.lock') }}
